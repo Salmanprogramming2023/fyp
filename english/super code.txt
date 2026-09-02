@@ -1,0 +1,151 @@
+import subprocess
+import sys
+import os
+
+
+# ============================================================
+# MODULE FOLDER
+# ============================================================
+
+BASE_DIR = os.path.dirname(
+    os.path.abspath(__file__)
+)
+
+# ============================================================
+# MODULES
+# ============================================================
+
+MODULES = [
+
+    "module1_extract_audio.py",
+
+    "module2_speech_to_text.py",
+
+    "module3_english_to_urdu.py",
+
+    "module4_urdu_to_speech.py",
+
+    "module5_adjust_audio.py",
+
+    "module6_create_video.py",
+
+]
+
+
+# ============================================================
+# RUN MODULE
+# ============================================================
+
+def run_module(module):
+
+    module_path = os.path.join(
+        BASE_DIR,
+        module
+    )
+
+    print()
+    print("=" * 70)
+    print("RUNNING:", module)
+    print("=" * 70)
+
+    print("Location:")
+    print(module_path)
+
+
+    # --------------------------------------------------------
+    # CHECK MODULE
+    # --------------------------------------------------------
+
+    if not os.path.exists(module_path):
+
+        print()
+        print("ERROR: Module file not found!")
+
+        return False
+
+
+    # --------------------------------------------------------
+    # RUN MODULE
+    # --------------------------------------------------------
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            module_path
+        ],
+        cwd=BASE_DIR
+    )
+
+
+    # --------------------------------------------------------
+    # CHECK EXIT CODE
+    # --------------------------------------------------------
+
+    if result.returncode != 0:
+
+        print()
+        print("=" * 70)
+        print("❌ MODULE FAILED")
+        print("=" * 70)
+
+        print("Module:", module)
+        print("Exit code:", result.returncode)
+
+        return False
+
+
+    print()
+    print("=" * 70)
+    print("✓ MODULE COMPLETED")
+    print("=" * 70)
+
+    return True
+
+
+# ============================================================
+# START
+# ============================================================
+
+print()
+print("=" * 70)
+print("        ENGLISH VIDEO → URDU VIDEO PIPELINE")
+print("=" * 70)
+
+print()
+print("Module folder:")
+print(BASE_DIR)
+
+
+# ============================================================
+# RUN MODULES
+# ============================================================
+
+for module in MODULES:
+
+    success = run_module(module)
+
+    if not success:
+
+        print()
+        print("=" * 70)
+        print("❌ PIPELINE STOPPED")
+        print("=" * 70)
+
+        print()
+        print("Problem occurred in:")
+        print(module)
+
+        sys.exit(1)
+
+
+# ============================================================
+# COMPLETE
+# ============================================================
+
+print()
+print("=" * 70)
+print("✓ PIPELINE COMPLETED")
+print("=" * 70)
+
+print()
+print("All modules completed successfully.")

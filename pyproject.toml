@@ -1,0 +1,21 @@
+[project]
+name = "n-lp"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "deep-translator>=1.11.4",
+    "edge-tts>=7.2.8",
+    "librosa>=1.0.0",
+    "moviepy>=2.2.1",
+    "openai-whisper>=20250625",
+    "streamlit>=1.62.0",
+]
+
+[project.scripts]
+n-lp = "n_lp:main"
+
+[build-system]
+requires = ["uv_build>=0.12.3,<0.13.0"]
+build-backend = "uv_build"

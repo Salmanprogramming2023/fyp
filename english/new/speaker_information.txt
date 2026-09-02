@@ -1,0 +1,23 @@
+SPEAKER DETECTION RESULTS
+==================================================
+
+Speaker 1
+Average pitch: 113.89 Hz
+Voice type: MALE-LIKE
+Segments: 2
+
+Speaker 2
+Average pitch: 156.13 Hz
+Voice type: MALE-LIKE
+Segments: 91
+
+Speaker 3
+Average pitch: 197.54 Hz
+Voice type: FEMALE-LIKE
+Segments: 5
+
+Speaker 4
+Average pitch: 244.76 Hz
+Voice type: FEMALE-LIKE
+Segments: 3
+

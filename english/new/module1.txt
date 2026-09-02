@@ -1,0 +1,65 @@
+import os
+from moviepy import VideoFileClip
+
+
+INPUT_VIDEO = "english_video.mp4"
+OUTPUT_AUDIO = "english_audio.wav"
+
+
+print("=" * 60)
+print("             VIDEO → AUDIO")
+print("=" * 60)
+
+
+if not os.path.exists(INPUT_VIDEO):
+    print("ERROR: english_video.mp4 was not found.")
+    print("Current folder:", os.getcwd())
+    exit()
+
+
+print("\nExtracting audio...")
+
+
+try:
+
+    video = VideoFileClip(INPUT_VIDEO)
+
+    audio = video.audio
+
+    if audio is None:
+        print("ERROR: Video has no audio.")
+        video.close()
+        exit()
+
+    audio.write_audiofile(
+        OUTPUT_AUDIO,
+        codec="pcm_s16le",
+        logger=None
+    )
+
+    audio.close()
+    video.close()
+
+
+except Exception as error:
+
+    print("\nERROR:")
+    print(error)
+    exit()
+
+
+if os.path.exists(OUTPUT_AUDIO):
+
+    size = os.path.getsize(OUTPUT_AUDIO)
+
+    print("\n" + "=" * 60)
+    print("SUCCESS")
+    print("=" * 60)
+
+    print("Audio extracted successfully.")
+    print("Audio:", os.path.abspath(OUTPUT_AUDIO))
+    print("Size:", round(size / 1024 / 1024, 2), "MB")
+
+else:
+
+    print("ERROR: Audio file was not created.")

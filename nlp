@@ -1,0 +1,22 @@
+import streamlit as st
+
+st.set_page_config(
+    page_title="AI Video Dubbing",
+    page_icon="🎬"
+)
+
+st.title("🎬 AI Video Dubbing")
+st.write("English → Urdu Automatic Video Dubbing")
+
+video = st.file_uploader(
+    "Upload your English video",
+    type=["mp4", "mkv", "avi", "mov"]
+)
+
+if video:
+    st.success("Video uploaded successfully!")
+
+    st.video(video)
+
+    if st.button("🚀 Start Dubbing"):
+        st.info("Dubbing process started...")
