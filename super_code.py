@@ -1,3 +1,5 @@
+# This file calls all the modules in order to convert an English video into an Urdu video.
+
 import subprocess
 import sys
 import os
