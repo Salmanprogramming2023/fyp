@@ -1,4 +1,3 @@
-
 import os
 import json
 import statistics
@@ -72,6 +71,10 @@ MAX_SENTENCE_SECONDS = 12.0
 
 PAUSE_THRESHOLD = 0.80
 
+# A tiny fragment is only glued to the previous sentence if the gap
+# between them is at most this many seconds (keeps dubbing in sync).
+MERGE_MAX_GAP = 0.50
+
 
 # ============================================================
 # PITCH ANALYSIS
@@ -106,6 +109,15 @@ MIN_VOICED_RATIO = 0.25
 MIN_CONFIDENCE_FOR_GENDER = 0.55
 
 STRONG_CONFIDENCE = 0.75
+
+# If at least this many sentences clearly show the OPPOSITE gender of the
+# recording-level result, the video has several speakers and every
+# sentence keeps its own estimate. One lone contradiction is treated as
+# a pitch-detection glitch and smoothed away.
+MIN_OPPOSITE_SENTENCES = 2
+
+# Last-resort split used only when nothing else decides the gender.
+FALLBACK_PITCH_SPLIT = 165.0
 
 
 # ============================================================
@@ -265,7 +277,9 @@ try:
 
     result = model.transcribe(
 
-        AUDIO_FILE,
+        # Pass the audio we already loaded (16 kHz float32) so Whisper
+        # does not need ffmpeg on PATH to open the file again.
+        audio,
 
         language="en",
 
@@ -632,10 +646,21 @@ for item in grouped:
     )
 
 
+    gap_to_previous = (
+        item["start"]
+        -
+        cleaned[-1]["end"]
+        if cleaned
+        else 0.0
+    )
+
+
     tiny_fragment = (
         word_count <= 3
         and
         duration <= 1.3
+        and
+        gap_to_previous <= MERGE_MAX_GAP
     )
 
 
@@ -1386,10 +1411,48 @@ print(
 final_segments = []
 
 
+# Sentences that clearly disagree with the recording-level result.
+# (Typical voices are ~120 Hz male / ~200 Hz female, which score below
+#  STRONG_CONFIDENCE, so the plain sentence-level estimate is used here.)
+if recording_gender == "male":
+    opposite_gender = "female"
+elif recording_gender == "female":
+    opposite_gender = "male"
+else:
+    opposite_gender = None
+
+
+opposite_sentences = [
+    x
+    for x in analysis_results
+    if (
+        opposite_gender is not None
+        and
+        x["raw_gender"] == opposite_gender
+        and
+        x["raw_confidence"] >= MIN_CONFIDENCE_FOR_GENDER
+    )
+]
+
+
+multi_speaker_detected = (
+    len(opposite_sentences)
+    >=
+    MIN_OPPOSITE_SENTENCES
+)
+
+
 single_profile = (
-    recording_gender
-    in
-    ("male", "female")
+    recording_gender in ("male", "female")
+    and
+    not multi_speaker_detected
+)
+
+
+print()
+print(
+    "Multiple speakers detected:",
+    multi_speaker_detected
 )
 
 
@@ -1502,6 +1565,9 @@ for item in analysis_results:
             "text":
                 item["text"],
 
+            "text_en":
+                item["text"],
+
             "gender":
                 final_gender,
 
@@ -1524,6 +1590,66 @@ for item in analysis_results:
                 )
         }
     )
+
+
+# ============================================================
+# RESOLVE "unknown" GENDERS
+# ============================================================
+#
+# Modules 3 and 4 need a definite male/female value to choose the
+# translation grammar and the TTS voice. A sentence that stayed
+# "unknown" takes the gender of the nearest confident sentence in
+# time. It is flagged with "gender_uncertain": true so you can see
+# which ones were filled in.
+# ============================================================
+
+if recording_gender in ("male", "female"):
+
+    fallback_gender = recording_gender
+
+elif global_median_pitch >= FALLBACK_PITCH_SPLIT:
+
+    fallback_gender = "female"
+
+else:
+
+    fallback_gender = "male"
+
+
+known_indexes = [
+    index
+    for index, seg in enumerate(final_segments)
+    if seg["gender"] in ("male", "female")
+]
+
+
+for seg in final_segments:
+
+    if seg["gender"] in ("male", "female"):
+
+        seg["gender_uncertain"] = False
+
+        continue
+
+
+    seg["gender_uncertain"] = True
+
+    if known_indexes:
+
+        nearest = min(
+            known_indexes,
+            key=lambda j: abs(
+                final_segments[j]["start"]
+                -
+                seg["start"]
+            )
+        )
+
+        seg["gender"] = final_segments[nearest]["gender"]
+
+    else:
+
+        seg["gender"] = fallback_gender
 
 
 # ============================================================
@@ -1577,6 +1703,9 @@ output = {
             3
         ),
 
+    "multi_speaker_detected":
+        multi_speaker_detected,
+
     "global_median_pitch":
         round(
             global_median_pitch,
@@ -1628,7 +1757,7 @@ female_count = sum(
 unknown_count = sum(
     1
     for item in final_segments
-    if item["gender"] == "unknown"
+    if item["gender_uncertain"]
 )
 
 
@@ -1650,7 +1779,7 @@ print(
 )
 
 print(
-    "Unknown segments:",
+    "Uncertain (filled from nearest confident sentence):",
     unknown_count
 )
 
@@ -1730,4 +1859,3 @@ print()
 print("=" * 70)
 print("✓ READY FOR MODULE 3")
 print("=" * 70)
-

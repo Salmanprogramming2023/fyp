@@ -1,0 +1,38 @@
+[
+  {
+    "id": 1,
+    "start": 0.0,
+    "end": 3.14,
+    "duration": 3.14,
+    "english": "Android OS, iOS, and Chrome OS.",
+    "urdu": "Android OS، iOS، اور Chrome OS ۔",
+    "gender": "female",
+    "pitch": 197.61,
+    "mean_pitch": 189.61,
+    "voiced_ratio": 0.599,
+    "confidence": 0.8,
+    "voice": "ur-PK-UzmaNeural",
+    "slot_duration": 3.81,
+    "audio_path": "D:\\N_lp\\english\\output\\tts\\seg_0001.wav",
+    "tts_rate": "+30%",
+    "tts_duration": 2.616
+  },
+  {
+    "id": 2,
+    "start": 3.96,
+    "end": 7.5,
+    "duration": 3.54,
+    "english": "Before focusing on mobile, I was a systems administrator on the Linux team.",
+    "urdu": "موبائل پر توجہ مرکوز کرنے سے پہلے، میں لینکس ٹیم میں سسٹم ایڈمنسٹریٹر تھا ۔",
+    "gender": "female",
+    "pitch": 245.41,
+    "mean_pitch": 246.63,
+    "voiced_ratio": 0.608,
+    "confidence": 0.882,
+    "voice": "ur-PK-UzmaNeural",
+    "slot_duration": 3.54,
+    "audio_path": "D:\\N_lp\\english\\output\\tts\\seg_0002.wav",
+    "tts_rate": "+30%",
+    "tts_duration": 4.416
+  }
+]

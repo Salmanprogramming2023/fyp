@@ -1,0 +1,18 @@
+# MANUAL GENDER CORRECTIONS (optional)
+#
+# Automatic gender detection is not perfect. Watch the video, look at the list
+# in gender_review.txt, and write one line here for every sentence with the
+# wrong voice. Then run Module 2 again (it takes seconds now, the transcript
+# is saved) and continue with Module 3.
+#
+# Ways to write a line (lines starting with # are ignored):
+#
+#   7 = male                     segment number 7
+#   10-12 = female               segments 10, 11 and 12
+#   22.4s-23.2s = male           everything spoken between second 22.4 and 23.2
+#
+# Later lines win over earlier lines. Example:
+#
+#   1-44 = female                (everything female ...)
+#   7 = male                     (... except segment 7)
+#

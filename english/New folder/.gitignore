@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+venv/
+.venv/
+n-lp/
+env/
+
+# Environment variables
+.env
+
+# Generated audio/video
+*.wav
+*.mp3
+*.mp4
+*.mkv
+*.avi
+*.mov
+
+# Generated transcripts/data
+speech_segments.json
+urdu_segments.json
+tts_segments.json
+tts_info.json
+
+# Temporary files
+module5_temp/
+urdu_segments_audio/
+*.tmp
+
+# Whisper / ML caches
+.cache/
+huggingface/

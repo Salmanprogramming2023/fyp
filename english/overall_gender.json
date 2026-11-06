@@ -1,0 +1,8 @@
+{
+    "overall_gender": "male",
+    "male_segments": 60,
+    "female_segments": 4,
+    "unknown_segments": 26,
+    "total_segments": 90,
+    "note": "Overall gender is informational. TTS uses each segment's final_gender."
+}

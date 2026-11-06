@@ -1,0 +1,892 @@
+import os
+import json
+import numpy as np
+import librosa
+import whisper
+
+
+# ============================================================
+# MODULE 2
+# SPEECH → ENGLISH TEXT + TIMING + GENDER INFORMATION
+# ============================================================
+
+BASE_DIR = os.path.dirname(
+    os.path.abspath(__file__)
+)
+
+
+# ============================================================
+# INPUT / OUTPUT FILES
+# ============================================================
+
+AUDIO_FILE = os.path.join(
+    BASE_DIR,
+    "english_audio.wav"
+)
+
+TRANSCRIPT_FILE = os.path.join(
+    BASE_DIR,
+    "english_transcript.txt"
+)
+
+SEGMENTS_FILE = os.path.join(
+    BASE_DIR,
+    "speech_segments.json"
+)
+
+MODEL_NAME = "small"
+
+
+# ============================================================
+# GENDER / VOICE SETTINGS
+# ============================================================
+
+MALE_PITCH_MAX = 155.0
+FEMALE_PITCH_MIN = 175.0
+
+UNCERTAIN_LOW = 155.0
+UNCERTAIN_HIGH = 175.0
+
+
+# ============================================================
+# HEADER
+# ============================================================
+
+print("=" * 70)
+print("       MODULE 2 - SPEECH → TEXT + GENDER")
+print("=" * 70)
+
+print()
+
+print("Audio file:")
+print(AUDIO_FILE)
+
+
+# ============================================================
+# CHECK AUDIO
+# ============================================================
+
+if not os.path.exists(AUDIO_FILE):
+
+    print()
+    print("❌ ERROR: Audio file not found:")
+
+    print(
+        AUDIO_FILE
+    )
+
+    raise SystemExit(1)
+
+
+# ============================================================
+# LOAD AUDIO
+# ============================================================
+
+print()
+print("=" * 70)
+print("LOADING AUDIO")
+print("=" * 70)
+
+try:
+
+    audio, sample_rate = librosa.load(
+        AUDIO_FILE,
+        sr=16000,
+        mono=True
+    )
+
+except Exception as error:
+
+    print()
+    print("❌ ERROR: Could not load audio:")
+    print(error)
+
+    raise SystemExit(1)
+
+
+print()
+print(
+    "Sample rate:",
+    sample_rate
+)
+
+print(
+    "Duration:",
+    round(
+        len(audio) / sample_rate,
+        2
+    ),
+    "seconds"
+)
+
+
+# ============================================================
+# LOAD WHISPER
+# ============================================================
+
+print()
+print("=" * 70)
+print("LOADING WHISPER")
+print("=" * 70)
+
+print()
+print(
+    "Model:",
+    MODEL_NAME
+)
+
+print(
+    "This may take some time on CPU..."
+)
+
+
+try:
+
+    model = whisper.load_model(
+        MODEL_NAME
+    )
+
+except Exception as error:
+
+    print()
+    print(
+        "❌ ERROR: Could not load Whisper:"
+    )
+
+    print(error)
+
+    raise SystemExit(1)
+
+
+print()
+print(
+    "✓ Whisper model loaded successfully."
+)
+
+
+# ============================================================
+# TRANSCRIPTION
+# ============================================================
+
+print()
+print("=" * 70)
+print("TRANSCRIBING AUDIO")
+print("=" * 70)
+
+try:
+
+    result = model.transcribe(
+        AUDIO_FILE,
+        language="en",
+        task="transcribe",
+        fp16=False,
+        verbose=False,
+        condition_on_previous_text=True
+    )
+
+except Exception as error:
+
+    print()
+    print(
+        "❌ ERROR: Transcription failed:"
+    )
+
+    print(error)
+
+    raise SystemExit(1)
+
+
+# ============================================================
+# NORMAL ENGLISH TRANSCRIPT
+# ============================================================
+
+english_text = result.get(
+    "text",
+    ""
+).strip()
+
+
+if not english_text:
+
+    print()
+    print(
+        "❌ ERROR: Whisper produced no text."
+    )
+
+    raise SystemExit(1)
+
+
+# ============================================================
+# SAVE ENGLISH TRANSCRIPT
+# ============================================================
+
+try:
+
+    with open(
+        TRANSCRIPT_FILE,
+        "w",
+        encoding="utf-8"
+    ) as file:
+
+        file.write(
+            english_text
+        )
+
+except Exception as error:
+
+    print()
+    print(
+        "❌ ERROR saving English transcript:"
+    )
+
+    print(error)
+
+    raise SystemExit(1)
+
+
+print()
+print(
+    "English transcript saved:"
+)
+
+print(
+    TRANSCRIPT_FILE
+)
+
+
+# ============================================================
+# VOICE ANALYSIS FUNCTION
+# ============================================================
+
+def analyze_voice(
+    start_time,
+    end_time
+):
+
+    """
+    Analyze the voice in one Whisper segment.
+
+    Returns:
+
+        gender
+        median_pitch
+        confidence
+    """
+
+    # --------------------------------------------------------
+    # Convert time to samples
+    # --------------------------------------------------------
+
+    start_sample = int(
+        max(
+            0,
+            start_time
+        ) * sample_rate
+    )
+
+    end_sample = int(
+        min(
+            len(audio),
+            end_time * sample_rate
+        )
+    )
+
+
+    segment_audio = audio[
+        start_sample:end_sample
+    ]
+
+
+    # --------------------------------------------------------
+    # Very short segment
+    # --------------------------------------------------------
+
+    if len(segment_audio) < (
+        sample_rate * 0.15
+    ):
+
+        return (
+            "unknown",
+            0.0,
+            0.0
+        )
+
+
+    # --------------------------------------------------------
+    # Normalize
+    # --------------------------------------------------------
+
+    try:
+
+        segment_audio = librosa.util.normalize(
+            segment_audio
+        )
+
+    except Exception:
+
+        return (
+            "unknown",
+            0.0,
+            0.0
+        )
+
+
+    # --------------------------------------------------------
+    # Pitch detection
+    # --------------------------------------------------------
+
+    try:
+
+        f0, voiced_flag, voiced_probs = (
+            librosa.pyin(
+                segment_audio,
+
+                fmin=65,
+
+                fmax=350,
+
+                sr=sample_rate,
+
+                frame_length=2048,
+
+                hop_length=256
+            )
+        )
+
+    except Exception:
+
+        return (
+            "unknown",
+            0.0,
+            0.0
+        )
+
+
+    # --------------------------------------------------------
+    # Remove NaN values
+    # --------------------------------------------------------
+
+    valid_pitch = f0[
+        ~np.isnan(f0)
+    ]
+
+
+    if len(valid_pitch) == 0:
+
+        return (
+            "unknown",
+            0.0,
+            0.0
+        )
+
+
+    # --------------------------------------------------------
+    # Remove extreme pitch values
+    # --------------------------------------------------------
+
+    valid_pitch = valid_pitch[
+        (valid_pitch >= 65)
+        &
+        (valid_pitch <= 350)
+    ]
+
+
+    if len(valid_pitch) == 0:
+
+        return (
+            "unknown",
+            0.0,
+            0.0
+        )
+
+
+    # --------------------------------------------------------
+    # Pitch statistics
+    # --------------------------------------------------------
+
+    median_pitch = float(
+        np.median(
+            valid_pitch
+        )
+    )
+
+    average_pitch = float(
+        np.mean(
+            valid_pitch
+        )
+    )
+
+
+    # --------------------------------------------------------
+    # Voiced ratio
+    # --------------------------------------------------------
+
+    voiced_ratio = float(
+        np.mean(
+            voiced_flag
+        )
+    )
+
+
+    # ========================================================
+    # GENDER ESTIMATION
+    # ========================================================
+
+    if median_pitch <= MALE_PITCH_MAX:
+
+        gender = "male"
+
+    elif median_pitch >= FEMALE_PITCH_MIN:
+
+        gender = "female"
+
+    else:
+
+        # ----------------------------------------------------
+        # Borderline pitch
+        # ----------------------------------------------------
+
+        if average_pitch < 165:
+
+            gender = "male"
+
+        elif average_pitch > 170:
+
+            gender = "female"
+
+        else:
+
+            gender = "unknown"
+
+
+    # ========================================================
+    # CONFIDENCE
+    # ========================================================
+
+    distance_from_boundary = min(
+        abs(
+            median_pitch
+            -
+            MALE_PITCH_MAX
+        ),
+
+        abs(
+            median_pitch
+            -
+            FEMALE_PITCH_MIN
+        )
+    )
+
+
+    pitch_confidence = min(
+        distance_from_boundary / 35.0,
+        1.0
+    )
+
+
+    confidence = round(
+        (
+            pitch_confidence * 0.7
+        )
+        +
+        (
+            voiced_ratio * 0.3
+        ),
+        3
+    )
+
+
+    return (
+        gender,
+        round(
+            median_pitch,
+            2
+        ),
+        confidence
+    )
+
+
+# ============================================================
+# PROCESS WHISPER SEGMENTS
+# ============================================================
+
+print()
+print("=" * 70)
+print("ANALYZING SENTENCES")
+print("=" * 70)
+
+
+speech_segments = []
+
+
+whisper_segments = result.get(
+    "segments",
+    []
+)
+
+
+if not whisper_segments:
+
+    print()
+    print(
+        "❌ ERROR: Whisper returned no segments."
+    )
+
+    raise SystemExit(1)
+
+
+# ============================================================
+# LOOP THROUGH SENTENCES
+# ============================================================
+
+for number, segment in enumerate(
+    whisper_segments,
+    start=1
+):
+
+    text = segment.get(
+        "text",
+        ""
+    ).strip()
+
+
+    if not text:
+
+        continue
+
+
+    # --------------------------------------------------------
+    # Timing
+    # --------------------------------------------------------
+
+    start = float(
+        segment.get(
+            "start",
+            0
+        )
+    )
+
+
+    end = float(
+        segment.get(
+            "end",
+            0
+        )
+    )
+
+
+    duration = end - start
+
+
+    print()
+    print("-" * 70)
+
+    print(
+        f"Segment {number}"
+    )
+
+    print(
+        f"Time: {start:.2f} → {end:.2f}"
+    )
+
+    print(
+        "Text:",
+        text
+    )
+
+
+    # --------------------------------------------------------
+    # Voice analysis
+    # --------------------------------------------------------
+
+    (
+        gender,
+        pitch,
+        confidence
+    ) = analyze_voice(
+        start,
+        end
+    )
+
+
+    print(
+        "Gender:",
+        gender
+    )
+
+    print(
+        "Pitch:",
+        pitch,
+        "Hz"
+    )
+
+    print(
+        "Confidence:",
+        confidence
+    )
+
+
+    # ========================================================
+    # CREATE SEGMENT OBJECT
+    # ========================================================
+
+    speech_segments.append(
+        {
+
+            "id":
+                len(
+                    speech_segments
+                ) + 1,
+
+            "start":
+                round(
+                    start,
+                    3
+                ),
+
+            "end":
+                round(
+                    end,
+                    3
+                ),
+
+            "duration":
+                round(
+                    duration,
+                    3
+                ),
+
+            "text":
+                text,
+
+            "gender":
+                gender,
+
+            "pitch":
+                pitch,
+
+            "confidence":
+                confidence
+
+        }
+    )
+
+
+# ============================================================
+# CHECK SEGMENTS
+# ============================================================
+
+if not speech_segments:
+
+    print()
+    print(
+        "❌ ERROR: No valid speech segments found."
+    )
+
+    raise SystemExit(1)
+
+
+# ============================================================
+# CREATE JSON OUTPUT
+# ============================================================
+
+output_data = {
+
+    "audio":
+        os.path.basename(
+            AUDIO_FILE
+        ),
+
+    "language":
+        "en",
+
+    "model":
+        MODEL_NAME,
+
+    "duration":
+        round(
+            len(audio) / sample_rate,
+            3
+        ),
+
+    "segment_count":
+        len(
+            speech_segments
+        ),
+
+    "segments":
+        speech_segments
+}
+
+
+# ============================================================
+# SAVE speech_segments.json
+# ============================================================
+
+print()
+print("=" * 70)
+print("SAVING SPEECH SEGMENTS")
+print("=" * 70)
+
+
+try:
+
+    with open(
+        SEGMENTS_FILE,
+        "w",
+        encoding="utf-8"
+    ) as file:
+
+        json.dump(
+            output_data,
+            file,
+            ensure_ascii=False,
+            indent=4
+        )
+
+except Exception as error:
+
+    print()
+    print(
+        "❌ ERROR saving speech_segments.json:"
+    )
+
+    print(error)
+
+    raise SystemExit(1)
+
+
+# ============================================================
+# VERIFY FILE
+# ============================================================
+
+if not os.path.exists(
+    SEGMENTS_FILE
+):
+
+    print()
+    print(
+        "❌ ERROR:"
+    )
+
+    print(
+        "speech_segments.json was not created."
+    )
+
+    raise SystemExit(1)
+
+
+# ============================================================
+# SUMMARY
+# ============================================================
+
+male_count = sum(
+    1
+    for segment in speech_segments
+    if segment["gender"] == "male"
+)
+
+
+female_count = sum(
+    1
+    for segment in speech_segments
+    if segment["gender"] == "female"
+)
+
+
+unknown_count = sum(
+    1
+    for segment in speech_segments
+    if segment["gender"] == "unknown"
+)
+
+
+# ============================================================
+# DISPLAY SUMMARY
+# ============================================================
+
+print()
+print("=" * 70)
+print("SPEAKER / GENDER SUMMARY")
+print("=" * 70)
+
+print()
+
+print(
+    "Total sentences:",
+    len(
+        speech_segments
+    )
+)
+
+print(
+    "Male segments:",
+    male_count
+)
+
+print(
+    "Female segments:",
+    female_count
+)
+
+print(
+    "Unknown segments:",
+    unknown_count
+)
+
+
+# ============================================================
+# FINAL FILES
+# ============================================================
+
+print()
+print("=" * 70)
+print("✓ MODULE 2 COMPLETE")
+print("=" * 70)
+
+print()
+
+print(
+    "English transcript:"
+)
+
+print(
+    TRANSCRIPT_FILE
+)
+
+print()
+
+print(
+    "Sentence + gender information:"
+)
+
+print(
+    SEGMENTS_FILE
+)
+
+print()
+
+print(
+    "speech_segments.json exists:",
+    os.path.exists(
+        SEGMENTS_FILE
+    )
+)
+
+print()
+
+print(
+    "IMPORTANT:"
+)
+
+print(
+    "Gender is an acoustic estimate based mainly on voice pitch."
+)
+
+print(
+    "It is not biological certainty."
+)
+
+print()
+
+print("=" * 70)

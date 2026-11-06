@@ -9,7 +9,7 @@ import shutil
 #
 # INPUT:
 #   Original video - automatically detected
-#   synchronized_urdu_audio.wav
+#   output/urdu_dubbed_audio.wav   (written by Module 5)
 #
 # OUTPUT:
 #   final_urdu_video.mp4
@@ -35,7 +35,8 @@ BASE_DIR = os.path.dirname(
 
 URDU_AUDIO = os.path.join(
     BASE_DIR,
-    "synchronized_urdu_audio.wav"
+    "output",
+    "urdu_dubbed_audio.wav"
 )
 
 
@@ -188,6 +189,42 @@ def find_original_video():
 
 
     return candidates[0]
+
+
+# ============================================================
+# MEDIA DURATION (needs ffprobe, which comes with FFmpeg)
+# ============================================================
+
+def get_duration(path):
+
+    ffprobe = shutil.which(
+        "ffprobe"
+    )
+
+    if ffprobe is None:
+
+        return None
+
+    try:
+
+        output = subprocess.run(
+            [
+                ffprobe,
+                "-v", "error",
+                "-show_entries", "format=duration",
+                "-of", "default=nw=1:nk=1",
+                path
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        ).stdout.strip()
+
+        return float(output)
+
+    except Exception:
+
+        return None
 
 
 # ============================================================
@@ -420,6 +457,38 @@ if os.path.exists(
 
 
 # ============================================================
+# COMPARE LENGTHS
+# ============================================================
+
+video_seconds = get_duration(
+    VIDEO_FILE
+)
+
+audio_seconds = get_duration(
+    URDU_AUDIO
+)
+
+if video_seconds and audio_seconds:
+
+    print()
+
+    print(
+        f"Video length: {video_seconds:.2f}s   "
+        f"Urdu audio length: {audio_seconds:.2f}s"
+    )
+
+    # Module 5 adds about 0.5 s of silence at the end, so only a
+    # bigger difference means real Urdu speech runs past the video.
+    if audio_seconds > video_seconds + 0.75:
+
+        print(
+            f"WARNING: the Urdu audio is "
+            f"{audio_seconds - video_seconds:.2f}s longer than the video. "
+            f"The end of the Urdu speech may be cut."
+        )
+
+
+# ============================================================
 # DISPLAY PLAN
 # ============================================================
 
@@ -540,8 +609,13 @@ command = [
     "+faststart",
 
     # --------------------------------------------------------
-    # Stop at shortest stream
+    # Pad the audio with silence, then stop when the VIDEO ends.
+    # (Without "apad", -shortest cuts the video whenever the
+    #  Urdu audio is shorter than the video.)
     # --------------------------------------------------------
+
+    "-af",
+    "apad",
 
     "-shortest",
 

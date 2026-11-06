@@ -1,0 +1,9 @@
+#001 [   3.44-  10.44] male   1.00  score   +6.6  If something is stumping you or you feel stuck at a certain 
+#002 [  11.00-  22.76] female 1.00  score   -6.6  Anytime I started to feel overwhelmed by information or like
+#003 [  22.76-  25.20] female 1.00  score   -6.6  friends and family when they said just do it, you can do it.
+#004 [  25.20-  32.72] male   0.99  score   +3.7  One of the greatest things that helped me to get back motiva
+#005 [  32.86-  37.92] male   1.00  score   +6.1  I was just able to go into the app and listen to a few video
+#006 [  38.40-  43.54] female 1.00  score   -6.6  Having a network of people that motivates you, it's so funda
+#007 [  44.06-  54.24] female 1.00  score   -6.6  You know even if it's a friend or if it's a family member th
+#008 [  54.70-  60.28] male   1.00  score   +6.6  And don't be afraid to ask for help, whether it be from your
+#009 [  60.72-  63.42] male   1.00  score   +6.6  There's always someone who knows more and you can learn from

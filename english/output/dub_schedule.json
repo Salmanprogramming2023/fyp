@@ -1,0 +1,20 @@
+[
+  {
+    "id": 1,
+    "original_start": 0.0,
+    "placed_start": 0.0,
+    "delay": 0.0,
+    "speedup": 1.0,
+    "duration": 2.616,
+    "ends_before_next": true
+  },
+  {
+    "id": 2,
+    "original_start": 3.96,
+    "placed_start": 3.96,
+    "delay": 0.0,
+    "speedup": 1.0,
+    "duration": 4.416,
+    "ends_before_next": true
+  }
+]

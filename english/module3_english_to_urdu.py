@@ -1,19 +1,20 @@
-
 import os
 import json
 import time
 import re
 import requests
-from deep_translator import GoogleTranslator
 
 
 # ============================================================
 # MODULE 3
 # ENGLISH → URDU
-# GENDER + TIMING PRESERVED
 #
-# INPUT:
-#     speech_segments.json
+# IMPORTANT:
+# Module 3 does NOT analyze audio.
+# Module 3 does NOT detect gender.
+# Module 3 only reads gender from Module 2:
+#
+# speech_segments.json
 #
 # OUTPUT:
 #     urdu_transcript.txt
@@ -49,12 +50,8 @@ URDU_SEGMENTS_FILE = os.path.join(
 # SETTINGS
 # ============================================================
 
-MAX_TRANSLATION_CHARS = 4500
-
 RETRY_COUNT = 3
-
 RETRY_DELAY = 2
-
 REQUEST_TIMEOUT = 20
 
 
@@ -63,48 +60,54 @@ REQUEST_TIMEOUT = 20
 # ============================================================
 
 print("=" * 70)
-print("       MODULE 3 - ENGLISH → URDU + GENDER")
+print("       MODULE 3 - ENGLISH → URDU")
 print("=" * 70)
 
 print()
-print("Input:")
+print("IMPORTANT:")
+print("Module 3 does NOT analyze audio.")
+print("Module 3 does NOT detect gender.")
+print("Module 3 only copies gender from Module 2.")
+
+print()
+print("Input file:")
 print(INPUT_FILE)
 
 print()
-print("Urdu transcript:")
+print("Output Urdu text:")
 print(URDU_TEXT_FILE)
 
 print()
-print("Urdu segment information:")
+print("Output Urdu segments:")
 print(URDU_SEGMENTS_FILE)
+
+print()
+print("Translation service:")
+print("MyMemory API ONLY")
 
 
 # ============================================================
-# CHECK INPUT
+# CHECK INPUT FILE
 # ============================================================
 
 if not os.path.exists(INPUT_FILE):
 
     print()
-    print("ERROR:")
-    print("speech_segments.json was not found.")
-
-    print()
-    print("Expected:")
+    print("ERROR: speech_segments.json was not found.")
+    print("Expected path:")
     print(INPUT_FILE)
 
     raise SystemExit(1)
 
 
 # ============================================================
-# LOAD SPEECH SEGMENTS
+# LOAD MODULE 2 JSON
 # ============================================================
 
 print()
 print("=" * 70)
-print("LOADING SPEECH SEGMENTS")
+print("LOADING GENDER INFORMATION FROM MODULE 2")
 print("=" * 70)
-
 
 try:
 
@@ -114,7 +117,7 @@ try:
         encoding="utf-8"
     ) as file:
 
-        data = json.load(file)
+        module2_data = json.load(file)
 
 except Exception as error:
 
@@ -126,72 +129,72 @@ except Exception as error:
 
 
 # ============================================================
-# SUPPORT DIFFERENT JSON FORMATS
+# READ SEGMENTS
 # ============================================================
 
-if isinstance(data, dict):
+if not isinstance(module2_data, dict):
 
-    segments = data.get(
-        "segments",
-        []
-    )
+    print()
+    print("ERROR:")
+    print("Module 2 JSON must be an object containing 'segments'.")
 
-elif isinstance(data, list):
+    raise SystemExit(1)
 
-    segments = data
 
-else:
+segments = module2_data.get("segments")
 
-    segments = []
+
+if not isinstance(segments, list):
+
+    print()
+    print("ERROR:")
+    print("The 'segments' field is missing or is not a list.")
+
+    raise SystemExit(1)
 
 
 if not segments:
 
     print()
     print("ERROR:")
-    print("No speech segments found.")
+    print("Module 2 provided zero speech segments.")
 
     raise SystemExit(1)
 
 
 print()
-print(
-    "Total segments:",
-    len(segments)
-)
+print("Total segments received from Module 2:")
+print(len(segments))
 
 
 # ============================================================
-# CREATE TRANSLATORS
+# SHOW EXACT GENDER RECEIVED FROM MODULE 2
 # ============================================================
 
 print()
 print("=" * 70)
-print("CREATING TRANSLATOR")
+print("GENDER RECEIVED FROM MODULE 2")
+print("=" * 70)
+
+for index, segment in enumerate(
+    segments,
+    start=1
+):
+
+    received_gender = segment.get(
+        "gender",
+        "MISSING"
+    )
+
+    print(
+        f"Segment {index}: {received_gender}"
+    )
+
 print("=" * 70)
 
 
-try:
-
-    google_translator = GoogleTranslator(
-        source="en",
-        target="ur"
-    )
-
-except Exception as error:
-
-    print()
-    print(
-        "WARNING: GoogleTranslator initialization failed."
-    )
-
-    print(error)
-
-    google_translator = None
-
-
 # ============================================================
-# CLEAN TEXT
+# TEXT CLEANING
 # ============================================================
 
 def clean_text(text):
@@ -216,14 +219,24 @@ def clean_text(text):
 
 
 # ============================================================
-# GOOGLE TRANSLATION
+# MYMEMORY TRANSLATION
 # ============================================================
 
-def translate_google(text):
+def translate_mymemory(text):
 
-    if google_translator is None:
+    text = clean_text(text)
 
-        return None
+    if not text:
+        return ""
+
+    url = (
+        "https://api.mymemory.translated.net/get"
+    )
+
+    params = {
+        "q": text,
+        "langpair": "en|ur"
+    }
 
     for attempt in range(
         1,
@@ -232,160 +245,98 @@ def translate_google(text):
 
         try:
 
-            result = google_translator.translate(
-                text
+            print(
+                f"MyMemory attempt "
+                f"{attempt}/{RETRY_COUNT}..."
             )
 
-            if result:
+            response = requests.get(
+                url,
+                params=params,
+                timeout=REQUEST_TIMEOUT
+            )
 
-                result = result.strip()
+            if response.status_code != 200:
 
-                if result:
+                print(
+                    "MyMemory HTTP error:",
+                    response.status_code
+                )
 
-                    return result
+                if attempt < RETRY_COUNT:
+                    time.sleep(RETRY_DELAY)
+
+                continue
+
+            result = response.json()
+
+            translated = (
+                result
+                .get(
+                    "responseData",
+                    {}
+                )
+                .get(
+                    "translatedText",
+                    ""
+                )
+            )
+
+            translated = clean_text(
+                translated
+            )
+
+            if not translated:
+                continue
+
+            if translated.lower() == text.lower():
+
+                print(
+                    "WARNING: MyMemory returned "
+                    "the original English text."
+                )
+
+                if attempt < RETRY_COUNT:
+                    time.sleep(RETRY_DELAY)
+
+                continue
+
+            print(
+                "Translation successful."
+            )
+
+            return translated
 
         except Exception as error:
 
             print(
-                f"Retry {attempt}/{RETRY_COUNT}..."
+                "MyMemory translation error:",
+                error
             )
 
-            if attempt == RETRY_COUNT:
-
-                print(
-                    "Google translation failed:"
-                )
-
-                print(error)
-
-            time.sleep(
-                RETRY_DELAY
-            )
+            if attempt < RETRY_COUNT:
+                time.sleep(RETRY_DELAY)
 
     return None
 
 
 # ============================================================
-# BACKUP TRANSLATION
-#
-# MyMemory public translation service
-# ============================================================
-
-def translate_backup(text):
-
-    try:
-
-        url = (
-            "https://api.mymemory.translated.net/get"
-        )
-
-        params = {
-            "q": text,
-            "langpair": "en|ur"
-        }
-
-        response = requests.get(
-            url,
-            params=params,
-            timeout=REQUEST_TIMEOUT
-        )
-
-        if response.status_code != 200:
-
-            return None
-
-        result = response.json()
-
-        translated = (
-            result
-            .get(
-                "responseData",
-                {}
-            )
-            .get(
-                "translatedText",
-                ""
-            )
-        )
-
-        if translated:
-
-            translated = translated.strip()
-
-            # Reject obvious failure responses
-            if (
-                translated.lower()
-                != text.lower()
-            ):
-
-                return translated
-
-    except Exception as error:
-
-        print(
-            "Backup translation error:",
-            error
-        )
-
-    return None
-
-
-# ============================================================
-# MAIN TRANSLATION FUNCTION
+# TRANSLATE ONE SENTENCE
 # ============================================================
 
 def translate_sentence(text):
 
-    text = clean_text(
-        text
-    )
+    text = clean_text(text)
 
     if not text:
-
         return ""
 
-    # --------------------------------------------------------
-    # METHOD 1
-    # GoogleTranslator
-    # --------------------------------------------------------
-
-    translated = translate_google(
+    translated = translate_mymemory(
         text
     )
 
     if translated:
-
         return translated
-
-
-    # --------------------------------------------------------
-    # METHOD 2
-    # Backup translator
-    # --------------------------------------------------------
-
-    print()
-    print(
-        "Trying backup translation..."
-    )
-
-    translated = translate_backup(
-        text
-    )
-
-    if translated:
-
-        print(
-            "✓ Backup translation successful"
-        )
-
-        return translated
-
-
-    # --------------------------------------------------------
-    # FINAL FALLBACK
-    #
-    # Do NOT stop the entire pipeline.
-    # --------------------------------------------------------
 
     print()
     print(
@@ -393,80 +344,103 @@ def translate_sentence(text):
     )
 
     print(
-        "Keeping original English text "
-        "for this segment."
+        "Keeping original English text."
     )
 
     return text
 
 
 # ============================================================
-# TRANSLATE SEGMENTS
+# TRANSLATION PROCESS
 # ============================================================
 
 print()
 print("=" * 70)
-print("TRANSLATING SENTENCES")
+print("TRANSLATING SEGMENTS")
 print("=" * 70)
 
-
 urdu_segments = []
-
 urdu_text_parts = []
 
 
-for index, segment in enumerate(
+for index, source_segment in enumerate(
     segments,
     start=1
 ):
 
     # --------------------------------------------------------
-    # READ VALUES
+    # READ ENGLISH TEXT FROM MODULE 2
     # --------------------------------------------------------
 
     english = clean_text(
-        segment.get(
+        source_segment.get(
             "text",
             ""
         )
     )
 
     if not english:
-
+        print(
+            f"Skipping empty segment {index}."
+        )
         continue
 
+    # --------------------------------------------------------
+    # READ TIMING FROM MODULE 2
+    # --------------------------------------------------------
 
-    start = float(
-        segment.get(
-            "start",
-            0
-        )
-    )
+    try:
 
-    end = float(
-        segment.get(
-            "end",
-            0
+        start = float(
+            source_segment.get(
+                "start",
+                0.0
+            )
         )
-    )
+
+    except Exception:
+
+        start = 0.0
+
+    try:
+
+        end = float(
+            source_segment.get(
+                "end",
+                start
+            )
+        )
+
+    except Exception:
+
+        end = start
 
     duration = max(
-        0,
+        0.0,
         end - start
     )
 
+    # --------------------------------------------------------
+    # COPY GENDER FROM MODULE 2
+    #
+    # NO AUDIO ANALYSIS HERE
+    # NO GENDER MODEL HERE
+    # --------------------------------------------------------
+
+    original_gender = source_segment.get(
+        "gender",
+        "unknown"
+    )
+
+    if original_gender is None:
+        original_gender = "unknown"
 
     gender = str(
-        segment.get(
-            "gender",
-            "unknown"
-        )
-    ).lower().strip()
+        original_gender
+    ).strip().lower()
 
-
-    # --------------------------------------------------------
-    # NORMALIZE GENDER
-    # --------------------------------------------------------
+    # Keep only the values supplied by Module 2.
+    # Do not predict or calculate anything here.
 
     if gender not in (
         "male",
@@ -474,18 +448,19 @@ for index, segment in enumerate(
         "unknown"
     ):
 
+        print()
+        print(
+            f"WARNING: Unknown gender value "
+            f"'{gender}' in segment {index}."
+        )
+
         gender = "unknown"
-
-
-    # --------------------------------------------------------
-    # DISPLAY
-    # --------------------------------------------------------
 
     print()
     print("-" * 70)
 
     print(
-        f"Sentence {index}/{len(segments)}"
+        f"Segment {index}/{len(segments)}"
     )
 
     print(
@@ -493,7 +468,7 @@ for index, segment in enumerate(
     )
 
     print(
-        "Gender:",
+        "Gender copied from Module 2:",
         gender
     )
 
@@ -502,113 +477,83 @@ for index, segment in enumerate(
         english
     )
 
-
     # --------------------------------------------------------
-    # TRANSLATE
+    # TRANSLATE ONLY TEXT
     # --------------------------------------------------------
 
     urdu = translate_sentence(
         english
     )
 
-
     if not urdu:
-
         urdu = english
-
 
     print(
         "Urdu:",
         urdu
     )
 
-    print(
-        "✓ Completed"
-    )
-
-
     # --------------------------------------------------------
-    # SAVE SEGMENT
+    # CREATE OUTPUT SEGMENT
+    #
+    # The gender is copied, not detected.
     # --------------------------------------------------------
 
     urdu_segment = {
+        "id": len(urdu_segments) + 1,
 
-        "id":
-            len(urdu_segments) + 1,
+        "start": round(
+            start,
+            3
+        ),
 
-        "start":
-            round(
-                start,
-                3
-            ),
+        "end": round(
+            end,
+            3
+        ),
 
-        "end":
-            round(
-                end,
-                3
-            ),
+        "duration": round(
+            duration,
+            3
+        ),
 
-        "duration":
-            round(
-                duration,
-                3
-            ),
+        "english": english,
 
-        "english":
-            english,
+        "urdu": urdu,
 
-        "urdu":
-            urdu,
-
-        "gender":
-            gender
+        "gender": gender
     }
 
+    # --------------------------------------------------------
+    # COPY OPTIONAL INFORMATION FROM MODULE 2
+    # --------------------------------------------------------
+
+    fields_to_copy = [
+        "speaker",
+        "speaker_index",
+        "pitch",
+        "mean_pitch",
+        "voiced_ratio",
+        "confidence",
+        "raw_gender",
+        "raw_confidence"
+    ]
+
+    for field_name in fields_to_copy:
+
+        if field_name in source_segment:
+
+            urdu_segment[field_name] = (
+                source_segment[field_name]
+            )
 
     # --------------------------------------------------------
-    # PRESERVE OPTIONAL SPEAKER INFORMATION
+    # SAVE IN MEMORY
     # --------------------------------------------------------
-
-    if "speaker" in segment:
-
-        urdu_segment[
-            "speaker"
-        ] = segment[
-            "speaker"
-        ]
-
-
-    if "speaker_index" in segment:
-
-        urdu_segment[
-            "speaker_index"
-        ] = segment[
-            "speaker_index"
-        ]
-
-
-    if "pitch" in segment:
-
-        urdu_segment[
-            "pitch"
-        ] = segment[
-            "pitch"
-        ]
-
-
-    if "confidence" in segment:
-
-        urdu_segment[
-            "confidence"
-        ] = segment[
-            "confidence"
-        ]
-
 
     urdu_segments.append(
         urdu_segment
     )
-
 
     urdu_text_parts.append(
         urdu
@@ -616,18 +561,14 @@ for index, segment in enumerate(
 
 
 # ============================================================
-# CHECK RESULT
+# CHECK OUTPUT
 # ============================================================
 
 if not urdu_segments:
 
     print()
     print(
-        "ERROR:"
-    )
-
-    print(
-        "No translated segments were created."
+        "ERROR: No Urdu segments were created."
     )
 
     raise SystemExit(1)
@@ -662,7 +603,7 @@ except Exception as error:
 
     print()
     print(
-        "ERROR saving Urdu transcript:"
+        "ERROR saving urdu_transcript.txt:"
     )
 
     print(error)
@@ -671,22 +612,47 @@ except Exception as error:
 
 
 # ============================================================
+# COUNT GENDERS
+# ============================================================
+
+male_count = sum(
+    1
+    for segment in urdu_segments
+    if segment["gender"] == "male"
+)
+
+female_count = sum(
+    1
+    for segment in urdu_segments
+    if segment["gender"] == "female"
+)
+
+unknown_count = sum(
+    1
+    for segment in urdu_segments
+    if segment["gender"] == "unknown"
+)
+
+
+# ============================================================
 # CREATE OUTPUT JSON
 # ============================================================
 
 output = {
+    "language": "ur",
 
-    "language":
-        "ur",
+    "source_language": "en",
 
-    "source_language":
-        "en",
+    "gender_source": (
+        "Copied directly from Module 2 "
+        "speech_segments.json"
+    ),
 
-    "segment_count":
-        len(urdu_segments),
+    "audio_analysis_in_module3": False,
 
-    "segments":
-        urdu_segments
+    "segment_count": len(urdu_segments),
+
+    "segments": urdu_segments
 }
 
 
@@ -722,35 +688,12 @@ except Exception as error:
 
 
 # ============================================================
-# SUMMARY
-# ============================================================
-
-male_count = sum(
-    1
-    for segment in urdu_segments
-    if segment["gender"] == "male"
-)
-
-female_count = sum(
-    1
-    for segment in urdu_segments
-    if segment["gender"] == "female"
-)
-
-unknown_count = sum(
-    1
-    for segment in urdu_segments
-    if segment["gender"] == "unknown"
-)
-
-
-# ============================================================
-# FINAL OUTPUT
+# FINAL SUMMARY
 # ============================================================
 
 print()
 print("=" * 70)
-print("✓ MODULE 3 COMPLETE")
+print("MODULE 3 COMPLETE")
 print("=" * 70)
 
 print()
@@ -776,6 +719,33 @@ print(
 
 print()
 print(
+    "Gender source:"
+)
+
+print(
+    "Module 2 speech_segments.json"
+)
+
+print()
+print(
+    "Audio analysis performed in Module 3:"
+)
+
+print(
+    "NO"
+)
+
+print()
+print(
+    "Gender information:"
+)
+
+print(
+    "Copied from Module 2 for every segment"
+)
+
+print()
+print(
     "Urdu transcript:"
 )
 
@@ -787,7 +757,7 @@ print(
 
 print()
 print(
-    "Urdu segment information:"
+    "Urdu segments:"
 )
 
 print(
@@ -797,41 +767,6 @@ print(
 )
 
 print()
-print(
-    "Gender information preserved:"
-)
-
-print(
-    "✓ Male"
-)
-
-print(
-    "✓ Female"
-)
-
-print(
-    "✓ Unknown"
-)
-
-print()
-print(
-    "Timing information preserved:"
-)
-
-print(
-    "✓ Start time"
-)
-
-print(
-    "✓ End time"
-)
-
-print(
-    "✓ Duration"
-)
-
-print()
 print("=" * 70)
 print("READY FOR MODULE 4")
 print("=" * 70)
-
