@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Python
 __pycache__/
 *.py[cod]
@@ -33,3 +34,11 @@ urdu_segments_audio/
 # Whisper / ML caches
 .cache/
 huggingface/
+=======
+*.txt
+*.wav
+*.mp4
+*.json
+*.mp3
+*.ipynb
+>>>>>>> 1a9fc70b3f93f29a7988e6c449d7ab15ce530f4d
