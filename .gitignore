@@ -42,3 +42,14 @@ huggingface/
 *.mp3
 *.ipynb
 >>>>>>> 1a9fc70b3f93f29a7988e6c449d7ab15ce530f4d
+
+# Multi-gender project: exclude virtual environments and generated folders
+/new/english/input videos/
+/new/english/output_videos/
+/new/english/urdu_segments_audio/
+/new/english/_module5_temp/
+/new/english/module4_temp/
+
+# Old experimental backup folder (not used by main pipeline)
+/new/english/new/
+
