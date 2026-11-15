@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
+    "audioop-lts>=0.2.2 ; python_full_version >= '3.13'",
     "deep-translator>=1.11.4",
     "edge-tts>=7.2.8",
     "librosa>=1.0.0",
